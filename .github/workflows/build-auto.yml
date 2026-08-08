@@ -1,12 +1,12 @@
 name: build-auto
 on:
+  workflow_dispatch:
   push:
-    paths:
-    - '.github/workflows/build-auto.yml'
-    - 'build.cmd'
-    - 'build.ps1'
-    - 'build.sh'
-    - 'laf'
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
 jobs:
   build-auto:
     runs-on: ${{ matrix.os }}
@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
-        build_type: [RelWithDebInfo, Debug]
+        build_type: [RelWithDebInfo]
     steps:
     - uses: actions/checkout@v7
       with:
@@ -47,3 +47,29 @@ jobs:
         export ASEPRITE=$PWD/build/bin/aseprite
         cd tests
         $XVFB bash run-tests.sh
+    - name: Make portable package marker
+      shell: bash
+      run: |
+        echo '# This file is here so Aseprite behaves as a portable program' > build/bin/aseprite.ini
+    - name: Create package (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        Compress-Archive -Path build/bin/* -DestinationPath aseprite-${{ runner.os }}.zip
+    - name: Create package (Linux/macOS)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        tar -C build/bin -czf aseprite-${{ runner.os }}.tar.gz .
+    - name: Upload package artifact (Windows)
+      if: runner.os == 'Windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: aseprite-${{ runner.os }}
+        path: aseprite-${{ runner.os }}.zip
+    - name: Upload package artifact (Linux/macOS)
+      if: runner.os != 'Windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: aseprite-${{ runner.os }}
+        path: aseprite-${{ runner.os }}.tar.gz
